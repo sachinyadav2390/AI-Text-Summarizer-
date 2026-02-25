@@ -1,0 +1,20 @@
+# AI Summarization Engine — HuggingFace Transformers
+# FastAPI microservice for text summarization
+
+torch
+transformers
+sentencepiece
+protobuf
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+
+# URL article extraction
+beautifulsoup4
+requests
+newspaper3k
+lxml
+
+# Multilingual translation
+deep-translator
