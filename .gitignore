@@ -48,3 +48,9 @@ uploads/
 diagrams.md
 
 query
+
+test-extraction.js
+test-pdf-debug-2.js
+test-pdf-debug.js
+test-pdf-url.js
+test-pdf.js
