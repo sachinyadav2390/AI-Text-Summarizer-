@@ -42,3 +42,7 @@ next-env.d.ts
 
 .git - Copy/
 .next - Copy/
+
+uploads/
+.vscode/
+diagrams.md
