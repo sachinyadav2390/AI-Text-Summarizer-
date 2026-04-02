@@ -23,9 +23,9 @@ class ModelConfig:
 # All supported models
 MODELS: Dict[str, ModelConfig] = {
     "bart": ModelConfig(
-        name="BART",
-        model_id="facebook/bart-large-cnn",
-        description="Facebook BART — best for news articles & general text",
+        name="DistilBART",
+        model_id="sshleifer/distilbart-cnn-12-6",
+        description="Distilled BART — significantly faster on CPU",
         max_input_tokens=1024,
         default_max_length=150,
         default_min_length=40,
@@ -48,7 +48,7 @@ MODELS: Dict[str, ModelConfig] = {
     ),
 }
 
-DEFAULT_MODEL = "bart"
+DEFAULT_MODEL = "t5"
 
 
 # ─── Summary Length Presets ────────────────────────────────────
@@ -65,19 +65,19 @@ class LengthPreset:
 LENGTH_PRESETS: Dict[str, Dict[str, LengthPreset]] = {
     # Per-model length presets
     "bart": {
-        "short":  LengthPreset(min_length=20,  max_length=60,  num_beams=4, length_penalty=1.0),
-        "medium": LengthPreset(min_length=50,  max_length=150, num_beams=4, length_penalty=1.0),
-        "long":   LengthPreset(min_length=100, max_length=300, num_beams=4, length_penalty=1.2),
+        "short":  LengthPreset(min_length=20,  max_length=60,  num_beams=2, length_penalty=1.0),
+        "medium": LengthPreset(min_length=50,  max_length=150, num_beams=2, length_penalty=1.0),
+        "long":   LengthPreset(min_length=100, max_length=300, num_beams=2, length_penalty=1.2),
     },
     "t5": {
-        "short":  LengthPreset(min_length=15,  max_length=50,  num_beams=4, length_penalty=0.8),
-        "medium": LengthPreset(min_length=40,  max_length=130, num_beams=4, length_penalty=1.0),
-        "long":   LengthPreset(min_length=80,  max_length=250, num_beams=4, length_penalty=1.2),
+        "short":  LengthPreset(min_length=15,  max_length=50,  num_beams=2, length_penalty=0.8),
+        "medium": LengthPreset(min_length=40,  max_length=130, num_beams=2, length_penalty=1.0),
+        "long":   LengthPreset(min_length=80,  max_length=250, num_beams=2, length_penalty=1.2),
     },
     "pegasus": {
-        "short":  LengthPreset(min_length=10,  max_length=40,  num_beams=4, length_penalty=0.8),
-        "medium": LengthPreset(min_length=30,  max_length=100, num_beams=4, length_penalty=1.0),
-        "long":   LengthPreset(min_length=60,  max_length=200, num_beams=4, length_penalty=1.2),
+        "short":  LengthPreset(min_length=10,  max_length=40,  num_beams=2, length_penalty=0.8),
+        "medium": LengthPreset(min_length=30,  max_length=100, num_beams=2, length_penalty=1.0),
+        "long":   LengthPreset(min_length=60,  max_length=200, num_beams=2, length_penalty=1.2),
     },
 }
 

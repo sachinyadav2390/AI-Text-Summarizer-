@@ -10,7 +10,7 @@ export type SummaryLength = "short" | "medium" | "long";
 export type ModelKey = "bart" | "t5" | "pegasus";
 export type SummaryFormat = "paragraph" | "bullets";
 
-const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://localhost:8000";
+const AI_SERVICE_URL = process.env.AI_SERVICE_URL || "http://127.0.0.1:8000";
 
 export interface SummarizeOptions {
   text: string;
@@ -90,7 +90,7 @@ export async function summarize(opts: SummarizeOptions): Promise<SummarizeResult
   const {
     text,
     length,
-    model = "bart",
+    model = "t5",
     maxWords,
     format = "paragraph",
     extractKeywords = false,
@@ -114,7 +114,7 @@ export async function summarize(opts: SummarizeOptions): Promise<SummarizeResult
         source_lang: sourceLang || null,
         target_lang: targetLang || null,
       }),
-      signal: AbortSignal.timeout(120_000),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {
@@ -147,8 +147,7 @@ export async function summarize(opts: SummarizeOptions): Promise<SummarizeResult
     throw new Error("Invalid response from AI service");
   } catch (error) {
     console.warn(
-      `⚠️  AI service unavailable, using extractive fallback: ${
-        error instanceof Error ? error.message : "unknown error"
+      `⚠️  AI service unavailable, using extractive fallback: ${error instanceof Error ? error.message : "unknown error"
       }`
     );
 
@@ -171,7 +170,50 @@ export async function summarize(opts: SummarizeOptions): Promise<SummarizeResult
       result.keywords = extractKeywordsFallback(text);
     }
 
+    if (targetLang && targetLang !== "en") {
+      try {
+        console.log(`🌐 Fallback: Translating summary to ${targetLang}...`);
+        result.summary = await translateText(result.summary, "en", targetLang);
+        result.translatedTo = targetLang;
+        if (result.bullets) {
+          result.bullets = await Promise.all(
+            result.bullets.map((b) => translateText(b, "en", targetLang).catch(() => b))
+          );
+        }
+      } catch (transError) {
+        console.warn(`❌ Fallback translation failed: ${transError instanceof Error ? transError.message : "unknown"}`);
+      }
+    }
+
     return result;
+  }
+}
+
+/**
+ * Translate text via Python AI service.
+ */
+export async function translateText(text: string, sourceLang: string, targetLang: string): Promise<string> {
+  try {
+    const res = await fetch(`${AI_SERVICE_URL}/ai/translate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      }),
+      signal: AbortSignal.timeout(30_000),
+    });
+
+    if (!res.ok) {
+      throw new Error(`Translation service returned ${res.status}`);
+    }
+
+    const data = (await res.json()) as { success: boolean; translatedText: string };
+    return data.translatedText;
+  } catch (error) {
+    console.error(`❌ Translation failed: ${error instanceof Error ? error.message : "unknown"}`);
+    return text; // Fallback to original text
   }
 }
 

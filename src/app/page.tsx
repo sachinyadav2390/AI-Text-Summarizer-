@@ -7,6 +7,9 @@ import URLInput from "@/components/URLInput";
 import SummaryOptions, { SummaryOptionsState } from "@/components/SummaryOptions";
 import ResultViewer from "@/components/ResultViewer";
 import HistoryPanel, { HistoryEntry } from "@/components/HistoryPanel";
+import Navbar from "@/components/Navbar";
+import TeamSection from "@/components/TeamSection";
+import ContactSection from "@/components/ContactSection";
 import {
   apiSummarize,
   apiGetHistory,
@@ -46,6 +49,12 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"text" | "file" | "url">("text");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Simulated Auth Handlers
+  const handleLogin = () => setIsLoggedIn(true);
+  const handleLogout = () => setIsLoggedIn(false);
+  const handleSignin = () => setIsLoggedIn(true);
 
   // Load history from backend on mount
   useEffect(() => {
@@ -55,7 +64,7 @@ export default function Home() {
           setHistory(res.data.entries.map(toFrontendEntry));
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleFileText = useCallback((text: string) => {
@@ -78,14 +87,25 @@ export default function Home() {
     setError("");
 
     try {
+      let finalSourceLang = options.sourceLang || undefined;
+      let finalTargetLang = options.targetLang || undefined;
+
+      // Auto-detect Hindi and translate to English if no language options are specifically set
+      if (!finalSourceLang && /[\u0900-\u097F]/.test(inputText)) {
+        finalSourceLang = "hi";
+        if (!finalTargetLang) {
+          finalTargetLang = "en";
+        }
+      }
+
       const res = await apiSummarize({
         text: inputText,
         length: options.length,
         maxWords: options.maxWords,
         format: options.format,
         extractKeywords: options.extractKeywords,
-        sourceLang: options.sourceLang || undefined,
-        targetLang: options.targetLang || undefined,
+        sourceLang: finalSourceLang,
+        targetLang: finalTargetLang,
       });
 
       if (res.success && res.data) {
@@ -101,8 +121,9 @@ export default function Home() {
       } else {
         setError(res.error || "Failed to generate summary. Please try again.");
       }
-    } catch {
-      setError("Could not connect to the server. Make sure the backend is running.");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "An unexpected error occurred. Please try again.";
+      setError(msg);
     } finally {
       setIsLoading(false);
     }
@@ -117,7 +138,7 @@ export default function Home() {
   }, []);
 
   const handleClearHistory = useCallback(async () => {
-    await apiClearHistory().catch(() => {});
+    await apiClearHistory().catch(() => { });
     setHistory([]);
   }, []);
 
@@ -125,45 +146,11 @@ export default function Home() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      {/* ===== HEADER ===== */}
-      <header className="header-gradient sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className="w-10 h-10 rounded-xl flex items-center justify-center"
-                style={{
-                  background: "linear-gradient(135deg, #dc2626, #ef4444)",
-                  boxShadow: "0 2px 12px rgba(220, 38, 38, 0.3)",
-                }}
-              >
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </div>
-              <div>
-                <h1 className="text-xl font-bold gradient-text">AI Text Summarizer</h1>
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Powered by 🤗 Transformers
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <a href="/history" className="btn-secondary flex items-center gap-1.5">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Dashboard
-              </a>
-              <span className="word-badge">
-                <span className="status-dot" />
-                Ready
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Navbar
+        isLoggedIn={isLoggedIn}
+        onLoginSuccess={handleLogin}
+        onLogout={handleLogout}
+      />
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -271,6 +258,9 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      <TeamSection />
+      <ContactSection />
 
       {/* ===== FOOTER ===== */}
       <footer style={{ borderTop: "1px solid var(--border)" }} className="mt-12">

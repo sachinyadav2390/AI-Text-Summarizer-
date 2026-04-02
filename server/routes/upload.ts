@@ -3,6 +3,9 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+import { PDFParse } from "pdf-parse";
+import mammoth from "mammoth";
+
 export const uploadRouter = Router();
 
 // ─── Multer config ───────────────────────────────────────
@@ -61,31 +64,47 @@ uploadRouter.post(
       const filePath = req.file.path;
       const ext = path.extname(req.file.originalname).toLowerCase();
 
+      console.log(`🔍 [UPLOAD] Processing file: ${req.file.originalname}, ext: ${ext}`);
       let extractedText = "";
 
       if (ext === ".txt") {
-        // Plain text — read directly
+        console.log("🔍 [UPLOAD] Reading TXT file...");
         extractedText = fs.readFileSync(filePath, "utf-8");
-      } else if (ext === ".pdf" || ext === ".doc" || ext === ".docx") {
-        // For PDF/DOC — attempt text read (basic fallback)
-        // In production, use: pdf-parse, mammoth, or a Python extraction service
+      } else if (ext === ".pdf") {
+        console.log("🔍 [UPLOAD] Extracting PDF text...");
+        const dataBuffer = fs.readFileSync(filePath);
+        console.log(`🔍 [UPLOAD] Buffer size: ${dataBuffer.length} bytes`);
         try {
-          extractedText = fs.readFileSync(filePath, "utf-8");
-        } catch {
-          extractedText = "";
+          const parser = new PDFParse({ data: dataBuffer });
+          const data = await parser.getText();
+          await parser.destroy();
+          console.log("🔍 [UPLOAD] PDF extraction successful");
+          extractedText = data.text;
+        } catch (pdfErr) {
+          console.error("❌ [UPLOAD] PDFParse error:", pdfErr);
+          throw pdfErr;
         }
-
-        if (!extractedText.trim() || extractedText.includes("\x00")) {
-          // Binary file — can't extract with plain fs
-          // Clean up
-          fs.unlinkSync(filePath);
-          res.status(422).json({
-            success: false,
-            error:
-              "Could not extract text from this file. For PDF/DOC files, please copy-paste the text directly or use a TXT file.",
-          });
-          return;
-        }
+      } else if (ext === ".docx") {
+        console.log("🔍 [UPLOAD] Extracting DOCX text...");
+        const result = await mammoth.extractRawText({ path: filePath });
+        console.log("🔍 [UPLOAD] DOCX extraction successful");
+        extractedText = result.value;
+      } else if (ext === ".doc") {
+        console.log("🔍 [UPLOAD] Rejected .DOC file");
+        res.status(422).json({
+          success: false,
+          error: "Binary .DOC format is not supported. Please save as .DOCX or .PDF.",
+        });
+        fs.unlinkSync(filePath);
+        return;
+      } else {
+        console.log(`🔍 [UPLOAD] Unsupported extension: ${ext}`);
+        res.status(422).json({
+          success: false,
+          error: "Unsupported file type.",
+        });
+        fs.unlinkSync(filePath);
+        return;
       }
 
       // Clean up uploaded file
@@ -126,10 +145,10 @@ uploadRouter.post(
         }
       }
 
-      console.error("Upload error:", error);
+      console.error("❌ Upload error:", error);
       res.status(500).json({
         success: false,
-        error: "Failed to process the uploaded file.",
+        error: error instanceof Error ? error.message : "Failed to process the uploaded file.",
       });
     }
   }

@@ -15,6 +15,7 @@ beautifulsoup4
 requests
 newspaper3k
 lxml
+lxml_html_clean
 
 # Multilingual translation
 deep-translator

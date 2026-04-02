@@ -13,7 +13,15 @@ Endpoints:
 
 import logging
 import time
+import sys
+import os
 from typing import Optional
+
+# Force UTF-8 encoding for standard out/err to prevent charmap errors on Windows
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
@@ -65,12 +73,9 @@ async def on_startup():
     logger.info("  AI Summarization Engine Starting...")
     logger.info("="*50)
     startup_time = time.time()
-    try:
-        load_model(DEFAULT_MODEL)
-        logger.info(f"Default model '{DEFAULT_MODEL}' ready!")
-    except Exception as e:
-        logger.warning(f"Could not pre-load default model: {e}")
-        logger.warning("Models will be loaded on first request (slower first call)")
+    # Note: Model loading is deferred to first request or can be done via /models/load
+    # to avoid blocking the server startup, especially on slower connections.
+    logger.info("Server ready! Models will load on demand or via /models/load")
 
 
 # ─── Request / Response Schemas ───────────────────────────────
@@ -162,6 +167,13 @@ class ModelInfo(BaseModel):
 class LoadModelRequest(BaseModel):
     """Request body for POST /models/load"""
     model: str = Field(..., description=f"Model to load: {', '.join(MODELS.keys())}")
+
+
+class TranslateRequest(BaseModel):
+    """Request body for POST /ai/translate"""
+    text: str = Field(..., min_length=1)
+    source_lang: str = Field(default="en")
+    target_lang: str = Field(default="hi")
 
 
 # ─── Endpoints ────────────────────────────────────────────────
@@ -348,6 +360,22 @@ async def api_extract_keywords(req: KeywordsRequest):
     """Extract keywords from text."""
     keywords = extract_keywords(req.text, req.max_keywords)
     return {"success": True, "keywords": keywords}
+
+
+@app.post("/ai/translate")
+async def api_translate(req: TranslateRequest):
+    """Translate text between supported languages."""
+    try:
+        translated = translate_text(req.text, req.source_lang, req.target_lang)
+        return {
+            "success": True,
+            "translatedText": translated,
+            "source": req.source_lang,
+            "target": req.target_lang
+        }
+    except Exception as e:
+        logger.error(f"Translation failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ─── Run ──────────────────────────────────────────────────────

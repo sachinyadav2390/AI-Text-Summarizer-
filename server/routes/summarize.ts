@@ -1,4 +1,6 @@
 import { Router, Request, Response } from "express";
+import path from "path";
+import { PDFParse } from "pdf-parse";
 import { validateTextInput, validateSummaryLength } from "../middleware/validate";
 import { summarize, checkAIHealth, extractFromURL } from "../services/aiService";
 import { historyStore } from "../store/historyStore";
@@ -35,7 +37,7 @@ summarizeRouter.post(
       const result = await summarize({
         text,
         length,
-        model: model || "bart",
+        model: model || "t5",
         maxWords: maxWords || undefined,
         format: format || "paragraph",
         extractKeywords: extractKeywords || false,
@@ -95,9 +97,46 @@ summarizeRouter.post("/extract-url", async (req: Request, res: Response): Promis
       return;
     }
 
-    console.log(`🔗 URL extraction request: ${url}`);
+    let sanitizedUrl = url;
+    // Handle chrome-extension://.../https://...
+    if (url.startsWith("chrome-extension://") && url.includes("/http")) {
+      const match = url.match(/\/https?:\/\/.+$/);
+      if (match) {
+        sanitizedUrl = match[0].substring(1); // remove leading /
+        console.log(`🧹 Sanitized URL: ${sanitizedUrl}`);
+      }
+    }
 
-    const result = await extractFromURL(url);
+    const result = await (async () => {
+      // If it's a PDF URL, extract text directly in backend
+      if (sanitizedUrl.toLowerCase().endsWith(".pdf")) {
+        console.log("📄 Detected PDF URL, extracting directly in backend...");
+        const response = await fetch(sanitizedUrl, {
+          signal: AbortSignal.timeout(30_000), // 30s timeout
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to download PDF: ${response.statusText}`);
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        console.log(`📥 Downloaded PDF: ${buffer.length} bytes`);
+
+        const parser = new PDFParse({ data: buffer });
+        const data = await parser.getText();
+        await parser.destroy();
+        console.log(`🔍 Extracted PDF text: ${data.text.length} chars`);
+
+        return {
+          title: path.basename(sanitizedUrl),
+          text: data.text,
+          authors: "Extracted from PDF",
+          wordCount: data.text.split(/\s+/).length,
+        };
+      } else {
+        // Otherwise use the AI service (for HTML articles)
+        return await extractFromURL(sanitizedUrl);
+      }
+    })();
 
     res.json({
       success: true,

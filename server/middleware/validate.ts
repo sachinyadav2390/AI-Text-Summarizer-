@@ -32,10 +32,10 @@ export function validateTextInput(req: Request, res: Response, next: NextFunctio
     return;
   }
 
-  if (trimmed.length > 50_000) {
+  if (trimmed.length > 500_000) {
     res.status(400).json({
       error: "Validation failed",
-      message: "Text exceeds the maximum length of 50,000 characters.",
+      message: "Text exceeds the maximum length of 500,000 characters.",
     });
     return;
   }
