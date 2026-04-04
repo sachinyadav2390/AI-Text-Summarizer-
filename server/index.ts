@@ -9,11 +9,12 @@ import { contactRouter } from "./routes/contact";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
+const CLIENT_URL = process.env.CLIENT_URL || "http://localhost:3000";
 const PORT = process.env.PORT || 5000;
 
 // ─── Middleware ───────────────────────────────────────────
 app.use(cors({ 
-  origin: ["http://localhost:3000", "http://127.0.0.1:3000"], 
+  origin: [CLIENT_URL, "http://localhost:3000", "http://127.0.0.1:3000"], 
   credentials: true 
 }));
 app.use(express.json({ limit: "10mb" }));

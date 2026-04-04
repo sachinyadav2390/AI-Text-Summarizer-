@@ -114,7 +114,7 @@ export async function summarize(opts: SummarizeOptions): Promise<SummarizeResult
         source_lang: sourceLang || null,
         target_lang: targetLang || null,
       }),
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(180_000),
     });
 
     if (!res.ok) {
