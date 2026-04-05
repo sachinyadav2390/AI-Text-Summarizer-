@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { apiGetHistory, apiDeleteHistory, apiClearHistory, HistoryEntry } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import Navbar from "@/components/Navbar";
 
 export default function HistoryDashboard() {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -9,7 +11,10 @@ export default function HistoryDashboard() {
   const [viewEntry, setViewEntry] = useState<HistoryEntry | null>(null);
   const [filter, setFilter] = useState("");
 
+  const { user, isLoading: isAuthLoading } = useAuth();
+
   const loadHistory = useCallback(async () => {
+    if (!user) return;
     setLoading(true);
     try {
       const res = await apiGetHistory(100);
@@ -21,11 +26,13 @@ export default function HistoryDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
-    loadHistory();
-  }, [loadHistory]);
+    if (user) {
+      loadHistory();
+    }
+  }, [user, loadHistory]);
 
   const handleDelete = useCallback(async (id: string) => {
     await apiDeleteHistory(id);
@@ -61,6 +68,37 @@ export default function HistoryDashboard() {
       minute: "2-digit",
     });
   };
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: "var(--bg-primary)" }}>
+        <div className="spinner" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
+        <Navbar />
+        <div className="max-w-7xl mx-auto px-4 py-20 text-center">
+          <div className="w-20 h-20 bg-red-50 rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-red-100">
+            <svg className="w-10 h-10 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-500 mb-8 max-w-md mx-auto">Please log in to your account to view and manage your summary history.</p>
+          <a href="/" className="btn-primary inline-flex items-center gap-2">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            Back to Home
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>

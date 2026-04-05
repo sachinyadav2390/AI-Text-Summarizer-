@@ -4,6 +4,21 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:5000/api";
 
+/**
+ * Helper to get authentication headers from localStorage.
+ */
+function getAuthHeaders(contentType = "application/json") {
+  const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+  const headers: Record<string, string> = {};
+  if (contentType !== "multipart/form-data") {
+    headers["Content-Type"] = contentType;
+  }
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 // ─── Types ───────────────────────────────────────────────
 
 export interface SummarizeRequest {
@@ -82,13 +97,47 @@ export interface HistoryResponse {
 // ─── API Functions ───────────────────────────────────────
 
 /**
+ * POST /api/auth/send-otp
+ */
+export async function apiSendOTP(phone: string): Promise<{ success: boolean; message?: string; error?: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/send-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+    return res.json();
+  } catch (err) {
+    console.error("Send OTP connection error:", err);
+    return { success: false, error: "Failed to connect to the server." };
+  }
+}
+
+/**
+ * POST /api/auth/verify-otp
+ */
+export async function apiVerifyOTP(phone: string, code: string): Promise<any> {
+  try {
+    const res = await fetch(`${API_BASE}/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone, code }),
+    });
+    return res.json();
+  } catch (err) {
+    console.error("Verify OTP connection error:", err);
+    return { success: false, error: "Failed to connect to the server." };
+  }
+}
+
+/**
  * POST /api/summarize
  */
 export async function apiSummarize(req: SummarizeRequest): Promise<SummarizeResponse> {
   try {
     const res = await fetch(`${API_BASE}/summarize`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getAuthHeaders(),
       body: JSON.stringify({
         text: req.text,
         length: req.length,
@@ -119,7 +168,7 @@ export async function apiSummarize(req: SummarizeRequest): Promise<SummarizeResp
 export async function apiExtractURL(url: string): Promise<URLExtractResponse> {
   const res = await fetch(`${API_BASE}/extract-url`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAuthHeaders(),
     body: JSON.stringify({ url }),
   });
   return res.json();
@@ -134,6 +183,7 @@ export async function apiUploadFile(file: File): Promise<UploadResponse> {
 
   const res = await fetch(`${API_BASE}/upload`, {
     method: "POST",
+    headers: getAuthHeaders("multipart/form-data"),
     body: formData,
   });
   return res.json();
@@ -144,7 +194,9 @@ export async function apiUploadFile(file: File): Promise<UploadResponse> {
  */
 export async function apiGetHistory(limit?: number): Promise<HistoryResponse> {
   const query = limit ? `?limit=${limit}` : "";
-  const res = await fetch(`${API_BASE}/history${query}`);
+  const res = await fetch(`${API_BASE}/history${query}`, {
+    headers: getAuthHeaders(),
+  });
   return res.json();
 }
 
@@ -152,7 +204,10 @@ export async function apiGetHistory(limit?: number): Promise<HistoryResponse> {
  * DELETE /api/history/:id
  */
 export async function apiDeleteHistory(id: string): Promise<{ success: boolean; message?: string; error?: string }> {
-  const res = await fetch(`${API_BASE}/history/${id}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/history/${id}`, { 
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
   return res.json();
 }
 
@@ -160,7 +215,10 @@ export async function apiDeleteHistory(id: string): Promise<{ success: boolean; 
  * DELETE /api/history  (clear all)
  */
 export async function apiClearHistory(): Promise<{ success: boolean; message?: string }> {
-  const res = await fetch(`${API_BASE}/history`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/history`, { 
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  });
   return res.json();
 }
 
@@ -190,5 +248,22 @@ export async function apiSendContactMessage(data: {
   } catch (err) {
     console.error("❌ Connection Error:", err);
     return { success: false, error: "Failed to connect to the server. Please check if the backend is running on port 5000." };
+  }
+}
+
+/**
+ * Generic Auth-aware POST helper for simple JSON data.
+ */
+export async function postData(endpoint: string, data: any) {
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  } catch (err) {
+    console.error(`Post error to ${endpoint}:`, err);
+    return { success: false, error: "Connection error." };
   }
 }

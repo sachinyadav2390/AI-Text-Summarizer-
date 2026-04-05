@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: ai-text-summarizer-node
+    env: node
+    buildCommand: npm install && npm run build:server
+    startCommand: npm run start:server
+    envVars:
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        sync: false
+      - key: AI_SERVICE_URL
+        fromService:
+          type: web
+          name: ai-text-summarizer-python
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: web
+    name: ai-text-summarizer-python
+    env: python
+    buildCommand: cd ai-service && pip install -r requirements.txt
+    startCommand: cd ai-service && uvicorn main:app --host 0.0.0.0 --port $PORT

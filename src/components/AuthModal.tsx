@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useAuth } from "@/context/AuthContext";
+import { postData, apiSendOTP, apiVerifyOTP } from "@/lib/api";
+import Script from "next/script";
 
 interface AuthModalProps {
     isOpen: boolean;
@@ -41,7 +44,7 @@ const MOCK_GOOGLE_ACCOUNTS = [
 ];
 
 export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "signin" }: AuthModalProps) {
-    const [step, setStep] = useState<"options" | "email" | "phone" | "google" | "google_add_account">("options");
+    const [step, setStep] = useState<"options" | "email" | "phone" | "otp" | "google" | "google_add_account">("options");
     const [mode, setMode] = useState<"signin" | "signup">(initialMode);
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -49,46 +52,129 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
     const [phoneNumber, setPhoneNumber] = useState("");
     const [countryCode, setCountryCode] = useState("+91");
     const [googleEmail, setGoogleEmail] = useState("");
+    const [otpCode, setOtpCode] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const { login } = useAuth();
 
     useEffect(() => {
         if (isOpen) {
             setStep("options");
             setMode(initialMode);
             setGoogleEmail("");
+            setOtpCode("");
+            setError(null);
         }
     }, [isOpen, initialMode]);
 
+    // Initialize Google Login
+    useEffect(() => {
+        if (isOpen && typeof window !== "undefined" && (window as any).google) {
+            (window as any).google.accounts.id.initialize({
+                client_id: "450894164921-do6q96rk4pbl0rsai7i5t6as5cr02ag6.apps.googleusercontent.com",
+                callback: handleGoogleLoginSuccess,
+            });
+            (window as any).google.accounts.id.renderButton(
+                document.getElementById("google-button-div"),
+                { theme: "outline", size: "large", width: "100%" }
+            );
+        }
+    }, [isOpen, step]);
+    // --- Auth Event Handlers ---
+
+    const handleEmailSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+
+        try {
+            const endpoint = mode === "signin" ? "/auth/login" : "/auth/register";
+            const payload = mode === "signin" ? { email, password } : { name, email, password };
+
+            const response = await postData(endpoint, payload);
+
+            if (response.success) {
+                login(response.token, response.user);
+                onSuccess(response.user.email);
+                onClose();
+            } else {
+                setError(response.error || "Authentication failed. Please try again.");
+            }
+        } catch (err: any) {
+            console.error("Auth submit error:", err);
+            setError("Something went wrong. Please check your connection.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGoogleLoginSuccess = async (credentialResponse: any) => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+            const response = await postData("/auth/google", { token: credentialResponse.credential });
+
+            if (response.success) {
+                login(response.token, response.user);
+                onSuccess(response.user.email);
+                onClose();
+            } else {
+                setError(response.error || "Google authentication failed.");
+            }
+        } catch (err) {
+            console.error("Google Auth error:", err);
+            setError("Unable to connect for Google sign-in.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleGoogleAccountSelect = (email: string) => {
+        // Mocking the behavior of selecting a Google account
+        setIsLoading(true);
+        setTimeout(() => {
+            setIsLoading(false);
+            setError("Google OAuth is only available via the 'Continue with Google' button in this environment.");
+            // In a real environment, we would use the actual Google SDK
+        }, 1000);
+    };
+
+    const handlePhoneSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+
+        const fullPhone = countryCode + phoneNumber;
+        const res = await apiSendOTP(fullPhone);
+        
+        setIsLoading(false);
+        if (res.success) {
+            setStep("otp");
+        } else {
+            setError(res.error || "Failed to send OTP.");
+        }
+    };
+
+    const handleOtpSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setIsLoading(true);
+
+        const fullPhone = countryCode + phoneNumber;
+        const res = await apiVerifyOTP(fullPhone, otpCode);
+
+        setIsLoading(false);
+        if (res.success) {
+            login(res.token, res.user);
+            onSuccess(res.user.name || fullPhone);
+            onClose();
+        } else {
+            setError(res.error || "Invalid OTP or expired.");
+        }
+    };
+
     if (!isOpen) return null;
-
-    const handleEmailSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
-            onSuccess(email);
-            onClose();
-        }, 1500);
-    };
-
-    const handlePhoneSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
-            onSuccess(`${countryCode} ${phoneNumber}`);
-            onClose();
-        }, 1500);
-    };
-
-    const handleGoogleAccountSelect = (selectedEmail: string) => {
-        setIsLoading(true);
-        setTimeout(() => {
-            setIsLoading(false);
-            onSuccess(selectedEmail);
-            onClose();
-        }, 1500);
-    };
 
     const handleGoogleAddAccountSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -158,7 +244,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                             )}
                         </div>
                         <h2 className="text-2xl font-bold gradient-text">
-                            {step === "options" ? "Welcome" : step === "email" ? (mode === "signin" ? "Sign In" : "Create Account") : step === "google" || step === "google_add_account" ? "Sign in with Google" : "Continue with Phone"}
+                            {step === "options" ? "Welcome" : step === "email" ? (mode === "signin" ? "Sign In" : "Create Account") : step === "google" || step === "google_add_account" ? "Sign in with Google" : step === "otp" ? "Verify Phone number" : "Continue with Phone"}
                         </h2>
                         <p className="text-sm text-gray-500 mt-1">
                             {step === "options"
@@ -169,9 +255,22 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                                         ? "Choose an account to continue"
                                         : step === "google_add_account"
                                             ? "Enter your Google email to continue"
-                                            : "Enter your phone number to receive a code"}
+                                            : step === "otp"
+                                                ? `OTP sent to ${countryCode}${phoneNumber}`
+                                                : "Enter your phone number to receive a code"}
                         </p>
                     </div>
+
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-50 border border-red-100 text-red-600 text-sm rounded-xl animate-shake">
+                            <div className="flex items-center gap-2">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                {error}
+                            </div>
+                        </div>
+                    )}
 
                     {step === "options" && (
                         <div className="space-y-3.5 animate-fade-in">
@@ -186,19 +285,40 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                                 Continue with Phone Number
                             </button>
 
-                            <button
-                                onClick={() => setStep("google")}
-                                disabled={isLoading}
-                                className="w-full relative flex items-center justify-center gap-3 px-4 py-3.5 border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-700 font-semibold"
-                            >
-                                <svg className="w-5 h-5 absolute left-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                    <path d="M12 23c2.97 0 5.46-1 7.28-2.69l-3.57-2.77c-.99.66-2.25 1.05-3.71 1.05-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                    <path d="M5.84 14.06c-.22-.66-.35-1.36-.35-2.06s.13-1.4.35-2.06V7.1H2.18C1.43 8.6 1 10.25 1 12s.43 3.4 1.18 4.9l3.66-2.84z" fill="#FBBC05" />
-                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.1l3.66 2.84c.87-2.6 3.3-4.56 6.16-4.56z" fill="#EA4335" />
-                                </svg>
-                                Continue with Google
-                            </button>
+                             <div className="relative w-full group overflow-hidden rounded-xl">
+                                 <button
+                                     disabled={isLoading}
+                                     type="button"
+                                     className="w-full relative flex items-center justify-center gap-3 px-4 py-3.5 border border-gray-200 group-hover:bg-gray-50 group-hover:border-gray-300 transition-all text-gray-700 font-semibold"
+
+                                 >
+                                     <svg className="w-5 h-5 absolute left-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                         <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                         <path d="M12 23c2.97 0 5.46-1 7.28-2.69l-3.57-2.77c-.99.66-2.25 1.05-3.71 1.05-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                         <path d="M5.84 14.06c-.22-.66-.35-1.36-.35-2.06s.13-1.4.35-2.06V7.1H2.18C1.43 8.6 1 10.25 1 12s.43 3.4 1.18 4.9l3.66-2.84z" fill="#FBBC05" />
+                                         <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.1l3.66 2.84c.87-2.6 3.3-4.56 6.16-4.56z" fill="#EA4335" />
+                                     </svg>
+                                     Sign in with Google
+                                 </button>
+                                 <div className="absolute inset-0 w-full h-full opacity-[0.01] z-10 cursor-pointer overflow-hidden">
+                                     <div id="google-button-div" className="w-[150%] h-[150%] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center"></div>
+                                 </div>
+                             </div>                             <Script 
+                                src="https://accounts.google.com/gsi/client" 
+                                strategy="afterInteractive" 
+                                onLoad={() => {
+                                    if (isOpen && (window as any).google) {
+                                        (window as any).google.accounts.id.initialize({
+                                            client_id: "450894164921-do6q96rk4pbl0rsai7i5t6as5cr02ag6.apps.googleusercontent.com",
+                                            callback: handleGoogleLoginSuccess,
+                                        });
+                                        (window as any).google.accounts.id.renderButton(
+                                            document.getElementById("google-button-div"),
+                                            { theme: "outline", size: "large", width: "100%" }
+                                        );
+                                    }
+                                }}
+                             />
 
                             <button
                                 onClick={() => setStep("email")}
@@ -319,8 +439,8 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                                         type="tel"
                                         required
                                         value={phoneNumber}
-                                        onChange={(e) => setPhoneNumber(e.target.value)}
-                                        placeholder="000-0000-000"
+                                        onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="0000000000"
                                         className="input-area sm:w-2/3"
                                     />
                                 </div>
@@ -339,6 +459,45 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                                     "Continue"
                                 )}
                             </button>
+                        </form>
+                    )}
+
+                    {step === "otp" && (
+                        <form onSubmit={handleOtpSubmit} className="space-y-5 animate-fade-in">
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold uppercase tracking-wider text-gray-400 ml-1">Enter 6-digit OTP</label>
+                                <input
+                                    type="text"
+                                    required
+                                    maxLength={6}
+                                    value={otpCode}
+                                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                                    placeholder=""
+                                    className="input-area text-center font-bold text-lg"
+                                />
+                                <p className="text-xs text-gray-400 text-center mt-2">
+                                    Code sent to {countryCode} {phoneNumber}
+                                </p>
+                            </div>
+                            <button
+                                type="submit"
+                                disabled={isLoading || otpCode.length < 6}
+                                className="btn-primary w-full py-3 mt-4 flex items-center justify-center gap-2"
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <div className="spinner border-white/30 border-t-white" />
+                                        Verifying...
+                                    </>
+                                ) : (
+                                    "Verify OTP"
+                                )}
+                            </button>
+                            <div className="mt-6 text-center">
+                                <button type="button" onClick={handlePhoneSubmit} className="text-xs font-medium text-red-500 hover:text-red-600">
+                                    Resend Code
+                                </button>
+                            </div>
                         </form>
                     )}
 
@@ -410,7 +569,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, initialMode = "s
                                     {mode === "signin" ? "Don't have an account?" : "Already have an account?"}
                                     <button
                                         type="button"
-                                        onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                                        onClick={() => {
+                                            setMode(mode === "signin" ? "signup" : "signin");
+                                            setEmail("");
+                                            setPassword("");
+                                            setName("");
+                                            setError(null);
+                                        }}
                                         className="ml-1.5 font-bold text-red-500 hover:text-red-700 underline-offset-4 hover:underline"
                                     >
                                         {mode === "signin" ? "Create Account" : "Sign In"}

@@ -82,7 +82,9 @@ LENGTH_PRESETS: Dict[str, Dict[str, LengthPreset]] = {
 }
 
 
+import os
+
 # ─── Server Config ─────────────────────────────────────────────
 
 HOST = "0.0.0.0"
-PORT = 8000
+PORT = int(os.environ.get("PORT", 8000))

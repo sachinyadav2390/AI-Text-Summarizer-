@@ -53,3 +53,32 @@ ${data.message}
 
   await transporter.sendMail(mailOptions);
 }
+
+export async function sendWelcomeEmail(email: string, name: string): Promise<void> {
+  const mailOptions = {
+    from: process.env.EMAIL_USER,
+    to: email,
+    subject: "Welcome to AI Text Summarizer! 🚀",
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 12px;">
+        <h2 style="color: #dc2626;">Welcome to AI Text Summarizer, ${name}!</h2>
+        <p>We're thrilled to have you on board. Our AI-powered tool is designed to help you save time by distilling complex text into clear, concise summaries.</p>
+        <p><strong>What you can do now:</strong></p>
+        <ul style="line-height: 1.6;">
+          <li>✨ Summarize long articles in seconds.</li>
+          <li>📄 Upload PDFs and Docs for instant insights.</li>
+          <li>🌐 Extract and summarize content directly from any URL.</li>
+          <li>📜 Keep a history of all your summaries in one place.</li>
+        </ul>
+        <p>If you have any questions or feedback, just reply to this email or use the contact form on our website.</p>
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${process.env.CLIENT_URL}" style="background-color: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">Launch the App</a>
+        </div>
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #eee;" />
+        <p style="font-size: 12px; color: #888; text-align: center;">Explore the power of transformers with AI Text Summarizer.</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+}

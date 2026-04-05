@@ -4,21 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import AuthModal from "./AuthModal";
 import EditProfileModal from "./EditProfileModal";
+import { useAuth } from "@/context/AuthContext";
 
-interface NavbarProps {
-    isLoggedIn: boolean;
-    onLoginSuccess: (email: string) => void;
-    onLogout: () => void;
-}
+export default function Navbar() {
+    const { user, logout, updateUser } = useAuth();
+    const isLoggedIn = !!user;
+    const userName = user?.name || "User";
+    const userPhoto = user?.avatar || null;
 
-export default function Navbar({ isLoggedIn, onLoginSuccess, onLogout }: NavbarProps) {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
     const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
     const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
     const [authMode, setAuthMode] = useState<"signin" | "signup">("signin");
-    const [userName, setUserName] = useState("User");
-    const [userPhoto, setUserPhoto] = useState<string | null>(null);
 
     const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
@@ -118,7 +116,7 @@ export default function Navbar({ isLoggedIn, onLoginSuccess, onLogout }: NavbarP
                                                 <button
                                                     onClick={() => {
                                                         setIsProfileMenuOpen(false);
-                                                        onLogout();
+                                                        logout();
                                                     }}
                                                     className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                                                 >
@@ -218,7 +216,7 @@ export default function Navbar({ isLoggedIn, onLoginSuccess, onLogout }: NavbarP
                                 </button>
                                 <div className="h-px bg-red-100 my-2" />
                                 <button
-                                    onClick={() => { onLogout(); setIsMobileMenuOpen(false); }}
+                                    onClick={() => { logout(); setIsMobileMenuOpen(false); }}
                                     className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-red-50 text-red-600"
                                 >
                                     <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,7 +244,7 @@ export default function Navbar({ isLoggedIn, onLoginSuccess, onLogout }: NavbarP
                 isOpen={isAuthModalOpen}
                 onClose={() => setIsAuthModalOpen(false)}
                 initialMode={authMode}
-                onSuccess={onLoginSuccess}
+                onSuccess={() => setIsAuthModalOpen(false)}
             />
 
             <EditProfileModal
@@ -254,8 +252,7 @@ export default function Navbar({ isLoggedIn, onLoginSuccess, onLogout }: NavbarP
                 onClose={() => setIsEditProfileOpen(false)}
                 currentName={userName}
                 onSave={(newName, newPhoto) => {
-                    setUserName(newName);
-                    setUserPhoto(newPhoto);
+                    updateUser({ ...user!, name: newName, avatar: newPhoto || undefined });
                 }}
             />
         </nav>

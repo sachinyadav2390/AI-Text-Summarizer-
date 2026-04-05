@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { historyStore } from "../store/historyStore";
+import { authMiddleware, AuthRequest } from "../middleware/authMiddleware";
 
 export const historyRouter = Router();
 
@@ -9,9 +10,9 @@ export const historyRouter = Router();
  * Returns all summary history entries (newest first).
  * Query params: ?limit=10 (optional)
  */
-historyRouter.get("/history", async (_req: Request, res: Response): Promise<void> => {
-  const limit = parseInt(_req.query.limit as string) || 50;
-  const entries = await historyStore.getAll(limit);
+historyRouter.get("/history", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const limit = parseInt(req.query.limit as string) || 50;
+  const entries = await historyStore.getAll(req.user!.id, limit);
 
   res.json({
     success: true,
@@ -27,8 +28,8 @@ historyRouter.get("/history", async (_req: Request, res: Response): Promise<void
  *
  * Returns a single history entry by ID.
  */
-historyRouter.get("/history/:id", async (req: Request, res: Response): Promise<void> => {
-  const entry = await historyStore.getById(req.params.id as string);
+historyRouter.get("/history/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const entry = await historyStore.getById(req.params.id as string, req.user!.id);
 
   if (!entry) {
     res.status(404).json({
@@ -49,8 +50,8 @@ historyRouter.get("/history/:id", async (req: Request, res: Response): Promise<v
  *
  * Deletes a single history entry by ID.
  */
-historyRouter.delete("/history/:id", async (req: Request, res: Response): Promise<void> => {
-  const deleted = await historyStore.deleteById(req.params.id as string);
+historyRouter.delete("/history/:id", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  const deleted = await historyStore.deleteById(req.params.id as string, req.user!.id);
 
   if (!deleted) {
     res.status(404).json({
@@ -71,8 +72,8 @@ historyRouter.delete("/history/:id", async (req: Request, res: Response): Promis
  *
  * Clears all history entries.
  */
-historyRouter.delete("/history", async (_req: Request, res: Response): Promise<void> => {
-  await historyStore.clearAll();
+historyRouter.delete("/history", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  await historyStore.clearAll(req.user!.id);
 
   res.json({
     success: true,

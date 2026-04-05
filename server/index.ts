@@ -6,6 +6,7 @@ import { summarizeRouter } from "./routes/summarize";
 import { uploadRouter } from "./routes/upload";
 import { historyRouter } from "./routes/history";
 import { contactRouter } from "./routes/contact";
+import { authRouter } from "./routes/auth";
 import { errorHandler } from "./middleware/errorHandler";
 
 const app = express();
@@ -30,6 +31,7 @@ app.use("/api", summarizeRouter);
 app.use("/api", uploadRouter);
 app.use("/api", historyRouter);
 app.use("/api", contactRouter);
+app.use("/api/auth", authRouter);
 
 // ─── Error Handler ───────────────────────────────────────
 app.use(errorHandler);

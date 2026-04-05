@@ -4,6 +4,7 @@ import { PDFParse } from "pdf-parse";
 import { validateTextInput, validateSummaryLength } from "../middleware/validate";
 import { summarize, checkAIHealth, extractFromURL } from "../services/aiService";
 import { historyStore } from "../store/historyStore";
+import { authMiddleware, AuthRequest } from "../middleware/authMiddleware";
 
 export const summarizeRouter = Router();
 
@@ -14,9 +15,10 @@ export const summarizeRouter = Router();
  */
 summarizeRouter.post(
   "/summarize",
+  authMiddleware,
   validateTextInput,
   validateSummaryLength,
-  async (req: Request, res: Response): Promise<void> => {
+  async (req: AuthRequest, res: Response): Promise<void> => {
     try {
       const {
         text,
@@ -45,8 +47,8 @@ summarizeRouter.post(
         targetLang: targetLang || undefined,
       });
 
-      // Save to history (MongoDB)
-      const historyEntry = await historyStore.add(text, result.summary, length, {
+      // Save to history (MongoDB) with the user ID
+      const historyEntry = await historyStore.add(req.user!.id, text, result.summary, length, {
         modelUsed: result.model,
         processingTimeMs: result.processingTimeMs,
         device: result.device,
@@ -88,7 +90,7 @@ summarizeRouter.post(
  * Body: { url: string }
  * Extracts article text from URL.
  */
-summarizeRouter.post("/extract-url", async (req: Request, res: Response): Promise<void> => {
+summarizeRouter.post("/extract-url", authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const { url } = req.body;
 

@@ -7,9 +7,7 @@
 import { Summary, ISummary } from "../models";
 import mongoose from "mongoose";
 
-// Default userId when no auth is present.
-// Replace with real userId from auth middleware later.
-const DEFAULT_USER_ID = new mongoose.Types.ObjectId("000000000000000000000001");
+// Default userId is no longer used once auth is implemented.
 
 export interface HistoryEntry {
   id: string;
@@ -48,9 +46,11 @@ function toHistoryEntry(doc: ISummary): HistoryEntry {
 }
 
 class HistoryStore {
-  /** Get all summaries for the default user (newest first) */
-  async getAll(limit = 50): Promise<HistoryEntry[]> {
-    const docs = await Summary.find({ userId: DEFAULT_USER_ID })
+  /** Get all summaries for a specific user (newest first) */
+  async getAll(userId: string, limit = 50): Promise<HistoryEntry[]> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return [];
+
+    const docs = await Summary.find({ userId: new mongoose.Types.ObjectId(userId) })
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();
@@ -58,13 +58,13 @@ class HistoryStore {
     return (docs as unknown as ISummary[]).map(toHistoryEntry);
   }
 
-  /** Get a single entry by its Mongo _id */
-  async getById(id: string): Promise<HistoryEntry | null> {
-    if (!mongoose.Types.ObjectId.isValid(id)) return null;
+  /** Get a single entry by its Mongo _id, ensuring it belongs to the user */
+  async getById(id: string, userId: string): Promise<HistoryEntry | null> {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(userId)) return null;
 
     const doc = await Summary.findOne({
       _id: id,
-      userId: DEFAULT_USER_ID,
+      userId: new mongoose.Types.ObjectId(userId),
     }).lean();
 
     return doc ? toHistoryEntry(doc as unknown as ISummary) : null;
@@ -72,6 +72,7 @@ class HistoryStore {
 
   /** Create a new summary record and return a HistoryEntry */
   async add(
+    userId: string,
     input: string,
     summary: string,
     length: "short" | "medium" | "long",
@@ -84,7 +85,7 @@ class HistoryStore {
     } = {}
   ): Promise<HistoryEntry> {
     const doc = await Summary.create({
-      userId: DEFAULT_USER_ID,
+      userId: new mongoose.Types.ObjectId(userId),
       originalText: input,
       summaryText: summary,
       modelUsed: extra.modelUsed || "extractive-fallback",
@@ -100,21 +101,22 @@ class HistoryStore {
     return toHistoryEntry(doc);
   }
 
-  /** Delete a single entry by _id */
-  async deleteById(id: string): Promise<boolean> {
-    if (!mongoose.Types.ObjectId.isValid(id)) return false;
+  /** Delete a single entry by _id, ensuring it belongs to the user */
+  async deleteById(id: string, userId: string): Promise<boolean> {
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(userId)) return false;
 
     const result = await Summary.deleteOne({
       _id: id,
-      userId: DEFAULT_USER_ID,
+      userId: new mongoose.Types.ObjectId(userId),
     });
 
     return result.deletedCount > 0;
   }
 
-  /** Clear all summaries for the default user */
-  async clearAll(): Promise<void> {
-    await Summary.deleteMany({ userId: DEFAULT_USER_ID });
+  /** Clear all summaries for the specific user */
+  async clearAll(userId: string): Promise<void> {
+    if (!mongoose.Types.ObjectId.isValid(userId)) return;
+    await Summary.deleteMany({ userId: new mongoose.Types.ObjectId(userId) });
   }
 }
 

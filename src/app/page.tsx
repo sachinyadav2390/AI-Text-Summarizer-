@@ -10,6 +10,7 @@ import HistoryPanel, { HistoryEntry } from "@/components/HistoryPanel";
 import Navbar from "@/components/Navbar";
 import TeamSection from "@/components/TeamSection";
 import ContactSection from "@/components/ContactSection";
+import { useAuth } from "@/context/AuthContext";
 import {
   apiSummarize,
   apiGetHistory,
@@ -49,23 +50,23 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [activeTab, setActiveTab] = useState<"text" | "file" | "url">("text");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  const { user } = useAuth();
 
-  // Simulated Auth Handlers
-  const handleLogin = () => setIsLoggedIn(true);
-  const handleLogout = () => setIsLoggedIn(false);
-  const handleSignin = () => setIsLoggedIn(true);
-
-  // Load history from backend on mount
+  // Load history from backend when user changes
   useEffect(() => {
-    apiGetHistory(20)
-      .then((res) => {
-        if (res.success && res.data) {
-          setHistory(res.data.entries.map(toFrontendEntry));
-        }
-      })
-      .catch(() => { });
-  }, []);
+    if (user) {
+      apiGetHistory(20)
+        .then((res) => {
+          if (res.success && res.data) {
+            setHistory(res.data.entries.map(toFrontendEntry));
+          }
+        })
+        .catch(() => { });
+    } else {
+      setHistory([]);
+    }
+  }, [user]);
 
   const handleFileText = useCallback((text: string) => {
     setInputText(text);
@@ -146,11 +147,7 @@ export default function Home() {
 
   return (
     <div className="min-h-screen" style={{ background: "var(--bg-primary)" }}>
-      <Navbar
-        isLoggedIn={isLoggedIn}
-        onLoginSuccess={handleLogin}
-        onLogout={handleLogout}
-      />
+      <Navbar />
 
       {/* ===== MAIN CONTENT ===== */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -249,11 +246,23 @@ export default function Home() {
           {/* Right Column: History */}
           <div className="lg:col-span-1">
             <div className="glass-card p-5 lg:sticky lg:top-24">
-              <HistoryPanel
-                history={history}
-                onSelectEntry={handleSelectHistory}
-                onClearHistory={handleClearHistory}
-              />
+              {user ? (
+                <HistoryPanel
+                  history={history}
+                  onSelectEntry={handleSelectHistory}
+                  onClearHistory={handleClearHistory}
+                />
+              ) : (
+                <div className="text-center py-10 px-4">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">History Locked</h3>
+                  <p className="text-xs text-gray-500 mb-4">Log in to save and view your personal summary history.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
